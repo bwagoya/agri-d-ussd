@@ -31,6 +31,16 @@ cron.schedule('*/10 * * * *', async () => {
   await cleanExpiredSessions()
 })
 
+// Self-ping to prevent spin down
+setInterval(async () => {
+  try {
+    await fetch('https://agri-d-ussd.onrender.com')
+    console.log('Self-ping successful')
+  } catch (error) {
+    console.log('Self-ping failed:', error.message)
+  }
+}, 4 * 60 * 1000) // every 4 minutes
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
