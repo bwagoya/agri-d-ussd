@@ -85,8 +85,9 @@ const handleUssd = async (req, res) => {
       })
     }
 
-  // Option 1 - Price entered - show summary
-  } else if (textArray.length === 4 && textArray[0] === '1') {
+  
+// Option 1 - Price entered - show summary
+  } else if (textArray.length >= 4 && textArray[0] === '1' && textArray.length < 6) {
     const crops = { '1': 'Maize', '2': 'Potatoes' }
     const crop = crops[textArray[1]]
     const quantity = textArray[2]
@@ -110,7 +111,7 @@ const handleUssd = async (req, res) => {
     }
 
   // Option 1 - Confirm listing
-  } else if (textArray.length === 5 && textArray[0] === '1') {
+  } else if (textArray.length >= 5 && textArray[0] === '1' && isValidMenuChoice(userInput, ['1', '2'])) {
     if (!isValidMenuChoice(userInput, ['1', '2'])) {
       response = `CON Invalid choice.\n1. Confirm\n2. Cancel`
     } else if (userInput === '1') {
