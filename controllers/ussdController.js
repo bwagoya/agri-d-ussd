@@ -11,7 +11,7 @@ const isValidNumber = (value) => {
 }
 
 const isValidName = (value) => {
-  return value && value.trim().length >= 2 && /^[a-zA-Z\s]+$/.test(value.trim())
+  return value && value.trim().length >= 2 && /^[a-zA-Z\s''-]+$/.test(value.trim())
 }
 
 const isValidLocation = (value) => {
@@ -36,32 +36,59 @@ const handleUssd = async (req, res) => {
 
   // Option 1 - List Produce
   } else if (text === '1') {
-    response = `CON Select crop type:\n1. Maize\n2. Potatoes`
-    await updateSession(sessionId, 'select_crop', { action: 'list' })
+    // Check if farmer is registered
+    const { data: farmer } = await supabase
+      .from('farmers')
+      .select('phone_number')
+      .eq('phone_number', phoneNumber)
+      .single()
+
+    if (!farmer) {
+      response = `CON You need to register first.\n1. Register\n0. Back`
+    } else {
+      response = `CON Select crop type:\n1. Maize\n2. Potatoes\n0. Back`
+      await updateSession(sessionId, 'select_crop', { action: 'list' })
+    }
+
+  // Option 1 - Unregistered farmer chose to register
+  } else if (text === '1*1' && !(await isFarmerRegistered(phoneNumber))) {
+    response = `CON Enter your full name:`
+    await updateSession(sessionId, 'enter_name', { action: 'register' })
+
+  // Option 1 - Unregistered farmer chose back
+  } else if (text === '1*0') {
+    response = `CON Welcome to Agri-D Ledger\n1. List Produce\n2. Check My Listings\n3. View Prices\n4. Register`
+    await updateSession(sessionId, 'main_menu', {})
 
   // Option 1 - Crop selected
   } else if (textArray.length === 2 && textArray[0] === '1') {
-    if (!isValidMenuChoice(userInput, ['1', '2'])) {
-      response = `CON Invalid choice. Select crop type:\n1. Maize\n2. Potatoes`
+    if (userInput === '0') {
+      response = `CON Welcome to Agri-D Ledger\n1. List Produce\n2. Check My Listings\n3. View Prices\n4. Register`
+      await updateSession(sessionId, 'main_menu', {})
+    } else if (!isValidMenuChoice(userInput, ['1', '2'])) {
+      response = `CON Invalid choice. Select crop type:\n1. Maize\n2. Potatoes\n0. Back`
     } else {
       const crops = { '1': 'Maize', '2': 'Potatoes' }
       const crop = crops[userInput]
-      response = `CON ${crop} selected.\nEnter quantity (bags):`
+      response = `CON ${crop} selected.\nEnter quantity (bags):\n0. Back`
       await updateSession(sessionId, 'enter_quantity', { action: 'list', cropType: crop })
     }
 
   // Option 1 - Quantity entered
   } else if (textArray.length === 3 && textArray[0] === '1') {
-    if (!isValidMenuChoice(textArray[1], ['1', '2'])) {
+    if (userInput === '0') {
+      response = `CON Select crop type:\n1. Maize\n2. Potatoes\n0. Back`
+      await updateSession(sessionId, 'select_crop', { action: 'list' })
+    } else if (!isValidMenuChoice(textArray[1], ['1', '2'])) {
       response = `END Invalid crop selection. Please start again.`
       await completeSession(sessionId)
     } else if (!isValidNumber(userInput)) {
-      response = `CON Invalid quantity. Must be a number greater than 0.\nEnter quantity (bags):`
+      response = `CON Invalid quantity. Must be a number > 0.\nEnter quantity (bags):\n0. Back`
     } else if (Number(userInput) > 10000) {
-      response = `CON Quantity too large. Maximum is 10,000 bags.\nEnter quantity (bags):`
+      response = `CON Max is 10,000 bags.\nEnter quantity (bags):\n0. Back`
     } else {
       const crops = { '1': 'Maize', '2': 'Potatoes' }
-      response = `CON Enter your asking price per bag (KES):`
+      response = `CON Enter your asking price per bag (KES):\n0. Back`
       await updateSession(sessionId, 'enter_price', {
         action: 'list',
         cropType: crops[textArray[1]],
@@ -71,26 +98,33 @@ const handleUssd = async (req, res) => {
 
   // Option 1 - Price entered - show summary
   } else if (textArray.length === 4 && textArray[0] === '1') {
-    const crops = { '1': 'Maize', '2': 'Potatoes' }
-    const crop = crops[textArray[1]]
-    const quantity = textArray[2]
-    const price = userInput
-
-    if (!isValidNumber(price)) {
-      response = `CON Invalid price. Must be a number greater than 0.\nEnter price per bag (KES):`
-    } else if (Number(price) < 100) {
-      response = `CON Price too low. Minimum is KES 100.\nEnter price per bag (KES):`
-    } else if (Number(price) > 100000) {
-      response = `CON Price too high. Maximum is KES 100,000.\nEnter price per bag (KES):`
+    if (userInput === '0') {
+      const crops = { '1': 'Maize', '2': 'Potatoes' }
+      const crop = crops[textArray[1]]
+      response = `CON ${crop} selected.\nEnter quantity (bags):\n0. Back`
+      await updateSession(sessionId, 'enter_quantity', { action: 'list', cropType: crop })
     } else {
-      const total = (Number(quantity) * Number(price)).toLocaleString()
-      response = `CON Summary:\nCrop: ${crop}\nQty: ${quantity} bags\nPrice: KES ${price}/bag\nTotal: KES ${total}\n\n1. Confirm\n2. Cancel`
-      await updateSession(sessionId, 'confirm_listing', {
-        action: 'list',
-        cropType: crop,
-        quantity,
-        price
-      })
+      const crops = { '1': 'Maize', '2': 'Potatoes' }
+      const crop = crops[textArray[1]]
+      const quantity = textArray[2]
+      const price = userInput
+
+      if (!isValidNumber(price)) {
+        response = `CON Invalid price. Must be a number > 0.\nEnter price per bag (KES):\n0. Back`
+      } else if (Number(price) < 100) {
+        response = `CON Min price is KES 100.\nEnter price per bag (KES):\n0. Back`
+      } else if (Number(price) > 100000) {
+        response = `CON Max price is KES 100,000.\nEnter price per bag (KES):\n0. Back`
+      } else {
+        const total = (Number(quantity) * Number(price)).toLocaleString()
+        response = `CON Summary:\nCrop: ${crop}\nQty: ${quantity} bags\nPrice: KES ${price}/bag\nTotal: KES ${total}\n\n1. Confirm\n2. Cancel`
+        await updateSession(sessionId, 'confirm_listing', {
+          action: 'list',
+          cropType: crop,
+          quantity,
+          price
+        })
+      }
     }
 
   // Option 1 - Confirm listing
@@ -119,7 +153,7 @@ const handleUssd = async (req, res) => {
         console.log('Listing error:', error.message)
         response = `END Something went wrong. Please try again.`
       } else {
-        response = `END Listing submitted!\nRef: ${listingId}\n\nYou will receive an SMS when a buyer is found.`
+        response = `END Listing submitted!\nRef: ${listingId}\n\nYou will be notified when verified.`
         await completeSession(sessionId)
       }
     } else {
@@ -150,15 +184,18 @@ const handleUssd = async (req, res) => {
 
   // Option 4 - Register - enter name
   } else if (text === '4') {
-    response = `CON Enter your full name:`
+    response = `CON Enter your full name:\n0. Back`
     await updateSession(sessionId, 'enter_name', { action: 'register' })
 
   // Option 4 - Enter location
   } else if (textArray.length === 2 && textArray[0] === '4') {
-    if (!isValidName(userInput)) {
-      response = `CON Invalid name. Use letters only, min 2 characters.\nEnter your full name:`
+    if (userInput === '0') {
+      response = `CON Welcome to Agri-D Ledger\n1. List Produce\n2. Check My Listings\n3. View Prices\n4. Register`
+      await updateSession(sessionId, 'main_menu', {})
+    } else if (!isValidName(userInput)) {
+      response = `CON Invalid name. Letters only, min 2 characters.\nEnter your full name:\n0. Back`
     } else {
-      response = `CON Enter your location:`
+      response = `CON Enter your location:\n0. Back`
       await updateSession(sessionId, 'enter_location', {
         action: 'register',
         name: userInput
@@ -167,12 +204,15 @@ const handleUssd = async (req, res) => {
 
   // Option 4 - Save registration
   } else if (textArray.length === 3 && textArray[0] === '4') {
-    const name = textArray[1].trim()
-    const location = userInput
-
-    if (!isValidLocation(location)) {
-      response = `CON Invalid location. Min 2 characters.\nEnter your location:`
+    if (userInput === '0') {
+      response = `CON Enter your full name:\n0. Back`
+      await updateSession(sessionId, 'enter_name', { action: 'register' })
+    } else if (!isValidLocation(userInput)) {
+      response = `CON Invalid location. Min 2 characters.\nEnter your location:\n0. Back`
     } else {
+      const name = textArray[1].trim()
+      const location = userInput
+
       const { error } = await supabase
         .from('farmers')
         .upsert({
@@ -197,6 +237,16 @@ const handleUssd = async (req, res) => {
 
   res.set('Content-Type', 'text/plain')
   res.send(response)
+}
+
+// Helper to check if farmer is registered
+const isFarmerRegistered = async (phoneNumber) => {
+  const { data } = await supabase
+    .from('farmers')
+    .select('phone_number')
+    .eq('phone_number', phoneNumber)
+    .single()
+  return !!data
 }
 
 module.exports = { handleUssd }
