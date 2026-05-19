@@ -35,10 +35,10 @@ const isFarmerRegistered = async (phoneNumber) => {
 const handleUssd = async (req, res) => {
   const { sessionId, serviceCode, phoneNumber, text } = req.body
   const textArray = text.split('*')
-console.log('Full text:', text)
-console.log('Text array length:', textArray.length)
-console.log('User input:', userInput)
   const userInput = textArray[textArray.length - 1].trim()
+  console.log('Full text:', text)
+  console.log('Text array length:', textArray.length)
+  console.log('User input:', userInput)
   let response = ''
 
   // Main menu
