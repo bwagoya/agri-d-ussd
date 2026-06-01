@@ -39,7 +39,7 @@ setInterval(async () => {
   } catch (error) {
     console.log('Self-ping failed:', error.message)
   }
-}, 4 * 60 * 1000) // every 4 minutes
+}, 14 * 60 * 1000) // every 4 minutes
 
 // Start server
 app.listen(PORT, () => {

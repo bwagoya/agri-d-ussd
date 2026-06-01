@@ -55,6 +55,9 @@ const handleUssd = async (req, res) => {
   const currentStep = session?.current_step || 'new'
   const collectedData = session?.collected_data || {}
 
+  console.log('Session ID:', sessionId)
+  console.log('Current step:', currentStep)
+  console.log('User input:', userInput)
   // Main menu — new session
   if (text === '' || currentStep === 'new') {
     await createSession(sessionId, phoneNumber)
